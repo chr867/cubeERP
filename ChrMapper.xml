@@ -1,0 +1,709 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sinseungpaper.cube.mappers.ChrMapperInterface">
+	<resultMap id="getCreate" type="com.sinseungpaper.cube.beans.CreateB">
+		<id property="caCode" column="caCode"/>
+		<collection property="createDetails" column="caCode" javaType="java.util.List" ofType="com.sinseungpaper.cube.beans.CreateDetail" select="selectManufactureDetail"></collection>
+	</resultMap>
+
+	<resultMap id="getPartnerAddItems" type="com.sinseungpaper.cube.beans.PartnerB">
+		<id property="prCode" column="PRCODE"/>
+		<collection property="partnerAddItems" column="prCode" javaType="java.util.List" ofType="com.sinseungpaper.cube.beans.PartnerAddItems"  select="selectPartnerAddItems"></collection>
+	</resultMap>
+	
+	<resultMap id="getPartnerAddItemsCreditDetail" type="com.sinseungpaper.cube.beans.PartnerB">
+		<id property="prCode" column="PRCODE"/>
+		<collection property="partnerAddItems" column="prCode" javaType="java.util.List" ofType="com.sinseungpaper.cube.beans.PartnerAddItems"  select="selectPartnerAddItems"></collection>
+		<collection property="partnerCreditDetail" column="prCode" javaType="java.util.List" ofType="com.sinseungpaper.cube.beans.PartnerCreditDetail" select="selectPartnerCreditDetail"></collection>
+		<collection property="partnerCreditLog" column="prCode" javaType="java.util.List" ofType="com.sinseungpaper.cube.beans.PartnerCreditLog" select="selectPartnerCreditLog"></collection>
+		<collection property="partnerCreditState" column="prCode" javaType="java.util.List" ofType="com.sinseungpaper.cube.beans.PartnerCreditLog" select="selectPartnerCreditState"></collection>
+	</resultMap>
+	
+	<resultMap type="com.sinseungpaper.cube.beans.SaleB" id="getPartnerSale">
+		<id property="seCode" column="SECODE"/>
+		<collection property="saleDetail" column="seCode" javaType="java.util.List" ofType="com.sinseungpaper.cube.beans.SaleDetail" select="selectPartnerSaleDetail"></collection>
+	</resultMap>
+	
+	<select id="selectAllEmPmAuth" resultType="com.sinseungpaper.cube.beans.EmployeePaperMakerAuth">
+		SELECT 
+				EPA_EMCODE AS EMPLOYEECODE
+			,	EPA_PMCODE AS PAPERMAKERCODE
+			,	EPA_ID AS PAPERMAKERID
+			,	EPA_AUTHCODE AS PAPERMAKERPW
+		FROM EM_PM_AUTH
+	</select>
+	
+	<update id="updateEmPmAuth" parameterType="com.sinseungpaper.cube.beans.EmployeePaperMakerAuth">
+		UPDATE EM_PM_AUTH 
+		SET 
+				EPA_ID = #{paperMakerId}
+			,	EPA_AUTHCODE = #{paperMakerPw}
+		WHERE EPA_EMCODE = #{employeeCode}
+		AND EPA_PMCODE = #{paperMakerCode}
+	</update>
+	
+	<select id="selectAuthList" parameterType="string" resultType="com.sinseungpaper.cube.beans.EmployeePaperMakerAuth">
+		SELECT
+				EPA_PMCODE AS paperMakerCode
+			,	EPA_ID AS paperMakerId
+			,	EPA_AUTHCODE AS paperMakerPw
+		FROM EM_PM_AUTH
+		WHERE EPA_EMCODE = #{employeeCode}
+	</select>
+	
+	<insert id="insertPartnerFiles" parameterType="java.util.HashMap">
+		INSERT INTO PC_FILES (PF_FILE, PF_POPCPRCODE, PF_PDPICODE) 
+		VALUES(#{filePath}, #{prCode}, #{piCode})
+		ON DUPLICATE KEY UPDATE PF_FILE = #{filePath}, PF_POPCPRCODE = #{prCode}, PF_PDPICODE=#{piCode}
+	</insert>
+
+	<!-- 단가확인 SELECT -->
+	<select id="selectCheckprice" resultType="com.sinseungpaper.cube.beans.CheckPriceB">
+		SELECT
+				CH.CH_DATETIME as chDatetime
+			,	DATE_FORMAT(CH.CH_DATETIME, '%Y-%m-%d') AS chDate
+			,	SUM(CH.CH_QTY) as chCount
+			,	CH.CH_PRCODE as chPrcode
+			,	PR.PR_NAME AS CHPRNAME
+			,	CH.CH_EMCODEDSALE as chEmcodedsale
+			,	EM.EM_NAME AS chEmnamedsale
+			,	PM.PM_NAME AS CHOGPRNAME
+			,	PM.PM_CODE AS CHOGPRCODE
+			,	CH.CH_OGCODE as chOgcode 
+			,	CH.CH_REPLYDATETIME as chReplydatetime
+			,	DATE_FORMAT(CH.CH_REPLYDATETIME, '%Y-%m-%d') AS chReplydate
+		FROM CHECKSCHEDULE AS CH
+		INNER JOIN EMPLOYEES EM ON EM.EM_CODE = CH.CH_EMCODEDSALE
+		INNER JOIN PAPERMAKER PM ON PM.PM_CODE = SUBSTR(CH.CH_OGCODE, 1, 2)
+		INNER JOIN PARTNERS PR ON PR.PR_CODE = CH.CH_PRCODE
+		GROUP BY 
+			DATE_FORMAT(CH.CH_DATETIME, '%Y-%m-%d')
+		, 	CH.CH_PRCODE
+		,	PM.PM_CODE
+	</select>
+	
+	<!-- 생산 품의 목록 SELECT -->
+ 	<select id="selectManufactureProposal" resultType="com.sinseungpaper.cube.beans.ProposalB">
+			SELECT 
+					PO.PO_DATETIME as PODATETIME
+				,	PO.PO_EWEMCODE as POEWEMCODE
+				,	EM.EM_NAME AS POEWEMNAME
+				,	PO.PO_EWWICODE as POEWWICODE
+				,	WI.WI_NAME AS POEWWINAME
+				,	PR.PR_NAME AS PONAME
+			FROM	 (SELECT * FROM PROPOSAL WHERE PO_CODE = 'CT3') PO
+			INNER JOIN EMPLOYEES EM ON EM.EM_CODE = PO.PO_EWEMCODE 
+			INNER JOIN WORKINFO WI ON WI.WI_CODE = PO.PO_EWWICODE 
+			INNER JOIN APPEND_MAPPING AM ON AM_PODATETIME = PO.PO_DATETIME
+			INNER JOIN `CREATE` CA ON CA.CA_CODE = AM.AM_CONTACTCODE
+			INNER JOIN PARTNERS PR ON PR.PR_CODE = (SELECT CD_PRCODE FROM CA_DETAIL WHERE CD_CACODE = CA.CA_CODE LIMIT 1)
+	</select>
+	
+	<!-- 첨부내용 SELECT -->
+  	<select id="selectManufactureProposalAppend" resultType="com.sinseungpaper.cube.beans.CreateDetail">
+
+	</select>
+
+	<!-- mo10(생산) -->
+		<!-- 생산의뢰 SELECT -->
+ 		<select id="selectManufactureOrder"  parameterType="com.sinseungpaper.cube.beans.CreateB" resultMap="getCreate">
+			SELECT	
+					CA.CA_CODE as caCode
+				,	CA.CA_DATE as caDate
+				,	CA.CA_NAME as caName
+				,	CA.CA_RMRK as caRmrk
+				,	CA.CA_EMCODE as caEmcode
+				,	EM.EM_NAME AS CAEMNAME
+				,	CA.CA_PMCODE as caPmcode
+				,	PM.PM_NAME AS CAPMNAME
+			FROM `CREATE` AS CA
+			INNER JOIN EMPLOYEES EM ON EM.EM_CODE = CA.CA_EMCODE
+			INNER JOIN PAPERMAKER PM ON PM.PM_CODE = CA.CA_PMCODE
+		</select>
+
+		<!-- 생산의뢰 SEARCH -->
+ 		<select id="searchManufactureOrder"  parameterType="com.sinseungpaper.cube.beans.CreateSearchB" resultMap="getCreate">
+			SELECT	
+					CA.CA_CODE as caCode
+				,	CA.CA_DATE as caDate
+				,	CA.CA_NAME as caName
+				,	CA.CA_RMRK as caRmrk
+				,	CA.CA_EMCODE as caEmcode
+				,	EM.EM_NAME AS CAEMNAME
+				,	CA.CA_PMCODE as caPmcode
+				,	PM.PM_NAME AS CAPMNAME
+			FROM (
+						SELECT * 
+						FROM `CREATE` 
+						<where>
+							<if test="date1 != null and date1 != ''">
+								AND CA_DATE BETWEEN #{date1} AND #{date2}
+							</if>
+ 							<if test="pmCode != null and pmCode != ''">
+								AND CA_PMCODE = #{pmCode}
+							</if>
+ 						</where>
+					 ) AS CA 
+			INNER JOIN EMPLOYEES EM ON EM.EM_CODE = CA.CA_EMCODE
+			INNER JOIN PAPERMAKER PM ON PM.PM_CODE = CA.CA_PMCODE
+		</select>
+		
+		<!-- 생산의뢰 상세 SELECT -->
+		<select id="selectManufactureDetail" parameterType="String" resultType="com.sinseungpaper.cube.beans.CreateDetail">
+			SELECT 
+					(
+						SELECT O.OG_NAME 
+						FROM ORIGINAL O 
+						WHERE O.OG_CODE = (
+							SELECT P.PT_OGCODE 
+							FROM PRODUCT P 
+							WHERE P.PT_CODE = CD.CD_PTCODE 
+						) 
+					) as cdPtname
+				,	CD.CD_CACODE as cdCacode
+				,	CD.CD_PTCODE as cdPtcode
+				,	CD.CD_COUNT as cdCount
+				,	CD.CD_WEIGHT as cdWeight
+				,	DATE_FORMAT(CD.CD_DESIREDATE,'%Y-%m-%d') as cdDesiredate
+				,	CD.CD_PRICE as cdPrice
+				,	CD.CD_DISCOUNTRATE as cdDiscountrate
+				,	CD.CD_RMRK as cdRmrk
+				,	CD.CD_CREATESCHEDULEDATE as cdCreatescheduledate
+				,	CD.CD_INSCHEDULEDATE as cdInscheduledate
+				,	CD.CD_INCMPLDATE as cdIncmpldate
+				,	CD.CD_ITCODE1 as cdItcode1
+				,	CD.CD_ITCODE2 as cdItcode2
+				,	CD.CD_PRCODE as cdPrcode
+				,	PR.PR_NAME AS CDPRNAME
+				,	CD.CD_STCODE as cdStcode
+				,	CD.CD_PODATETIME as cdPodatetime
+				,	CA.CA_RMRK AS CARMRK
+				,	CA.CA_NAME AS CANAME
+			FROM (
+						SELECT * 
+					 	FROM CA_DETAIL 
+						 WHERE CD_CACODE = #{caCode}
+					 ) as CD 
+			INNER JOIN `CREATE` CA ON CA.CA_CODE = CD.CD_CACODE
+			INNER JOIN PARTNERS PR ON PR.PR_CODE = CD.CD_PRCODE
+		</select>
+		
+		<!-- 생산의뢰 상세 SELECT (품의)-->
+		<select id="selectManufactureDetailProPosal" parameterType="String" resultType="com.sinseungpaper.cube.beans.CreateDetail">
+			SELECT 
+					(
+						SELECT O.OG_NAME 
+						FROM ORIGINAL O 
+						WHERE O.OG_CODE = (
+							SELECT P.PT_OGCODE 
+							FROM PRODUCT P 
+							WHERE P.PT_CODE = CD.CD_PTCODE 
+						) 
+					) as cdPtname
+				,	(SELECT PM_NAME FROM PAPERMAKER WHERE PM_CODE = CA_PMCODE) AS CDPMNAME
+				,	CD.CD_COUNT as cdCount
+				,	CD.CD_WEIGHT as cdWeight
+				,	DATE_FORMAT(CD.CD_DESIREDATE,'%Y-%m-%d') as cdDesiredate
+				,	CD.CD_RMRK as cdRmrk
+				,	PR.PR_NAME AS CDPRNAME
+				,	CA.CA_RMRK AS CARMRK
+				,	CA.CA_NAME AS CANAME
+				,	CD.CD_PTCODE AS CDPTCODE
+			FROM (
+						SELECT *
+					 	FROM `CREATE` 
+						 WHERE CA_CODE = (SELECT AM_CONTACTCODE FROM APPEND_MAPPING WHERE AM_PODATETIME = #{poDateTime})
+					 ) as CA
+			INNER JOIN CA_DETAIL CD ON CD.CD_CACODE = CA.CA_CODE
+			INNER JOIN PARTNERS PR ON PR.PR_CODE = CD.CD_PRCODE
+		</select>
+		
+		<!-- 생산의뢰 UPDATE -->
+ 		<update id="updateManufactureOrder">
+			UPDATE `CREATE` 
+			SET
+				CA_RMRK = #{caRmrk}
+			,	CA_NAME = #{caName}
+			WHERE CA_CODE = #{caCode}	
+		</update>
+
+		<!-- 생산의뢰 상세 UPDATE -->
+ 		<update id="updateManufactureDetail">
+			UPDATE CA_DETAIL 
+			SET 
+			<if test='cdCreatescheduledate != null and cdCreatescheduledate != ""'>
+				 	CD_CREATESCHEDULEDATE = #{cdCreatescheduledate} 
+			</if>
+			<if test='cdInscheduledate != null and cdInscheduledate != ""'>
+				 	CD_INSCHEDULEDATE = #{cdInscheduledate} 
+			</if>
+			<if test='cdIncmpldate != null and cdIncmpldate != ""'>
+				 	CD_INCMPLDATE = #{cdIncmpldate} 
+			</if>
+			WHERE CD_CACODE = #{cdCacode} 
+			AND CD_PTCODE = #{cdPtcode}
+		</update>
+		
+		<!-- 단가확인 회신 -->
+		<update id="updateCheckSchedule">
+			UPDATE CHECKSCHEDULE as CH
+			SET 
+					CH.CH_REPLYDATETIME = current_timestamp(3)
+				,	CH.CH_EMCODEDBUY = #{chEmcodedbuy}
+				,	CH.CH_DEADLINEDATE =  #{chDeadlinedate}
+				,	CH.CH_CREATESTARTDATE = #{chCreatestartdate}
+				,	CH.CH_ORDERABLEDATE =  #{chOrderabledate}
+				,	CH.CH_BUYDISCOUNTRATE = #{chBuydiscountrate}
+			WHERE CH.CH_DATETIME = #{chDatetime}
+		</update>
+		
+		<!-- 매출처 최근 매출 -->
+		<select id="selectPartnerSale" parameterType="string" resultMap="getPartnerSale">
+			SELECT
+					SE.SE_CODE AS SECODE
+				,	PR.PR_NAME AS SEPRNAME
+			FROM (SELECT * FROM SALE WHERE SE_DPCODE = #{partnerCode}) AS SE
+			INNER JOIN PARTNERS PR ON PR_CODE = SE_PRCODE
+			LIMIT 10;
+		</select>
+		
+		<!-- 매출 상세 -->
+		<select id="selectPartnerSaleDetail" parameterType="string" resultType="com.sinseungpaper.cube.beans.SaleDetail">
+			SELECT  
+					OG.OG_NAME as edPtName
+				,	(SELECT PM_NAME FROM PAPERMAKER WHERE PM_CODE = OG.OG_PMCODE) as edPmName
+			FROM (SELECT * FROM SE_DETAIL WHERE ED_SECODE = #{seCode}) ED
+			INNER JOIN PRODUCT PT ON PT.PT_CODE = ED.ED_PTCODE
+			INNER JOIN ORIGINAL OG ON OG.OG_CODE = PT.PT_OGCODE
+		</select>
+		
+		<!-- 매출처 여신 -->
+		<select id="selectPartnerLoan" parameterType="string" resultType="com.sinseungpaper.cube.beans.PartnerLoan">
+			SELECT
+				    PO.PO_GRADE AS POGRADE
+				,	PO.PO_LIMIT AS POLIMIT
+			FROM (
+			    SELECT *
+			    FROM PR_LOAN
+			    WHERE PO_PRCODE = #{partnerCode}
+			) PO
+			WHERE PO.PO_DATETIME = (
+			    SELECT MAX(PO_DATETIME)
+			    FROM PR_LOAN
+			    WHERE PO_PRCODE = #{partnerCode}
+			);
+		</select>
+		
+	<!-- mo30(의뢰) -->
+		<!-- 단가확인 회신 SELECT -->
+ 		<select id="selectCheckScheduleReply" 
+			parameterType="com.sinseungpaper.cube.beans.CheckPriceB" 
+			resultType="com.sinseungpaper.cube.beans.CheckPriceB">
+			SELECT 
+			    DATE_FORMAT(CH.CH_REPLYDATETIME, '%Y-%m-%d') AS chReplydatetime
+			    , CH.CH_DATETIME as chDatetime
+			    , CH.CH_OGCODE as chOgcode
+			    , CH.CH_WIDTH as chWidth
+			    , CH.CH_HEIGHT as chHeight
+			    , CH.CH_QTY as chCount
+			    , CH.CH_ITCODE as chItcode
+			    , (SELECT IT_NAME FROM ITEMS WHERE IT_CODE = CH.CH_ITCODE) as chItname
+			    , CH.CH_ITCODE2 as chItcode2
+			    , (SELECT IT_NAME FROM ITEMS WHERE IT_CODE = CH.CH_ITCODE2) as chItname2
+			    , CH.CH_DEADLINEDATE as chDeadlinedate
+			    , CH.CH_PRCODE as chPrcode
+			    , CH.CH_CREATESTARTDATE as chCreatestartdate
+			    , CH.CH_ORDERABLEDATE as chOrderabledate
+			    , CH.CH_BUYDISCOUNTRATE as chBuydiscountrate
+			    , EM.EM_NAME AS CHEMNAMEDBUY
+			    , PM.PM_NAME AS CHOGPRNAME
+			    , PM.PM_CODE AS CHOGPRCODE
+			    , OG.OG_NAME AS CHOGNAME
+			    , PR.PR_NAME AS CHPRNAME
+			    , DATE_FORMAT(CH.CH_DATETIME, '%Y-%m-%d') AS chDate
+			FROM (
+			    SELECT * 
+			    FROM CHECKSCHEDULE
+			    WHERE DATE_FORMAT(CH_DATETIME, '%Y-%m-%d') = #{chDate}
+			    AND CH_PRCODE = #{chPrcode}
+			    AND (SELECT PM_CODE FROM PAPERMAKER WHERE PM_CODE = SUBSTR(CH_OGCODE, 1, 2)) = #{chOgprcode}
+			) AS CH 
+			INNER JOIN EMPLOYEES EM ON EM.EM_CODE = CH.CH_EMCODEDBUY 
+			INNER JOIN PAPERMAKER PM ON PM.PM_CODE = SUBSTR(CH.CH_OGCODE, 1, 2) 
+			INNER JOIN ORIGINAL OG ON OG.OG_CODE = CH.CH_OGCODE
+			INNER JOIN PARTNERS PR ON PR.PR_CODE = CH.CH_PRCODE;
+		</select>
+		
+		<!-- 단가확인 발신 -->
+ 		<insert id="insertCheckSchedule" parameterType="com.sinseungpaper.cube.beans.CheckPriceB">
+			INSERT INTO CHECKSCHEDULE (CH_WIDTH, CH_HEIGHT, CH_QTY, CH_ITCODE, CH_ITCODE2, CH_OGCODE, CH_PRCODE, CH_EMCODEDSALE, CH_EMCODEDBUY)
+			VALUES (#{chWidth}, #{chHeight}, #{chCount}, #{chItcode}, #{chItcode2}, #{chOgcode}, #{chPrcode}, #{chEmcodedsale}, '091205')
+		</insert>
+
+		<!-- mo30 생산의뢰 품의 SELECT -->
+ 		<select id="selectCreateProposal" resultType="com.sinseungpaper.cube.beans.ProposalB">
+			SELECT 
+					DATE_FORMAT(PO.PO_DATETIME, '%Y-%m-%d') AS poDatetime
+				,	EM.EM_NAME AS POEWEMNAME
+			FROM PROPOSAL PO
+			INNER JOIN EMPLOYEES EM ON EM.EM_CODE = PO.PO_EWEMCODE
+			WHERE PO.PO_CODE = 'CT3'
+		</select>
+
+		<!-- 생산의뢰 품의 INSERT -->
+ 		<select id="insertCreateProposal" parameterType="com.sinseungpaper.cube.beans.CreateB"  resultType="String">
+			INSERT INTO PROPOSAL(PO_CODE, PO_EWEMCODE, PO_EWWICODE)
+			VALUES('CT3', '120404', 'J18')
+			RETURNING PO_DATETIME
+		</select>
+		
+		<!-- 생산 품의 첨부 내용 insert -->		
+		<insert id="insertCreateMapping" parameterType="map">
+			INSERT INTO APPEND_MAPPING(AM_CONTACTCODE, AM_PODATETIME, AM_ISTABLE) 
+			VALUE(#{caCode}, #{poDatetime}, '0')
+		</insert>
+			
+		<!-- 단가요청 delete -->
+		<delete id="deleteCheckPrice" parameterType="string">
+			DELETE FROM CHECKSCHEDULE 
+			WHERE CH_DATETIME = #{chDateTime}
+		</delete>
+
+		<!-- 생산의뢰 INSERT -->
+ 		<select id="insertCreateOrder"  parameterType="com.sinseungpaper.cube.beans.CreateB" resultType="String">
+			INSERT INTO `CREATE` (CA_CODE, CA_EMCODE, CA_PMCODE)
+			VALUES(
+				(
+					SELECT CONCAT('C', DATE_FORMAT(NOW(), '%Y%m%d'), #{caPmcode}, LPAD(
+							(SELECT COUNT(c.CA_CODE) + 1 
+							FROM `CREATE` c 
+							WHERE c.CA_PMCODE = #{caPmcode}),
+							 2, '0')
+						)
+				),
+				 #{caEmcode},
+				 #{caPmcode}
+			)
+			RETURNING CA_CODE
+		</select>
+				
+		<!-- 생산상세 INSERT -->
+ 		<insert id="insertCreateOrderDetail" parameterType="com.sinseungpaper.cube.beans.CreateDetail">
+			INSERT INTO CA_DETAIL (
+				CD_CACODE, CD_PTCODE, CD_COUNT, CD_WEIGHT, CD_DESIREDATE, CD_PRICE, CD_DISCOUNTRATE,
+				CD_RMRK, CD_ITCODE1, CD_ITCODE2, CD_PRCODE, CD_STCODE, CD_PODATETIME
+			)
+			VALUES(
+				#{cdCacode}, #{cdPtcode}, #{cdCount}, #{cdWeight}, #{cdDesiredate}, #{cdPrice}, #{cdDiscountrate},
+				#{cdRmrk}, #{cdItcode1}, #{cdItcode2}, #{cdPrcode}, 'PM1', #{cdPodatetime}
+			)
+		</insert>
+
+	<!-- ds50(기업심사) -->
+		<!-- 신용 정보 입력 거래처 목록 SELECT -->
+		<select id="selectPartnerAudit" resultMap="getPartnerAddItems">
+			SELECT
+					PR_CODE AS PRCODE
+				,	PR_NAME AS PRNAME
+				,	PR_CEO AS PRCEO
+				,	PR_ADDR AS PRADDR
+				,	PR_PHONE AS PRPHONE
+			FROM PARTNERS
+			WHERE PR_CODE IN (
+				SELECT AM_CONTACTCODE
+				FROM APPEND_MAPPING
+				WHERE AM_PODATETIME IN(
+					SELECT PU_PODATETIME FROM PP_AUTHLIST
+					WHERE PU_EMCODE = '011201'
+					AND PU_STCODE = 'E41'
+				)
+			)
+		</select>
+		
+		<!-- 선택한 거래처 추가정보, 신용정보 select -->
+		<select id="selectPartnerModify" parameterType="com.sinseungpaper.cube.beans.PartnerB" resultMap="getPartnerAddItemsCreditDetail">
+			SELECT
+					PR_CODE AS PRCODE
+				,	PR_NAME AS PRNAME
+				,	PR_CEO AS PRCEO
+				,	PR_ADDR AS PRADDR
+				,	PR_PHONE AS PRPHONE
+			FROM PARTNERS
+			WHERE PR_CODE = #{prCode}				
+		</select>
+		
+		<!-- 품의 끝난(승인) 거래처 목록 SELECT -->
+		<select id="selectPartnerRegistration" parameterType="com.sinseungpaper.cube.beans.PartnerB" resultMap="getPartnerAddItemsCreditDetail">
+			SELECT
+					PR_CODE AS PRCODE
+				,	PR_NAME AS PRNAME
+				,	PR_CEO AS PRCEO
+				,	PR_ADDR AS PRADDR
+				,	PR_PHONE AS PRPHONE
+			FROM PARTNERS
+			WHERE PR_STCODE = 'PR4'
+		</select>
+
+		<!--  거래처 추가 정보 SELECT -->
+		<select id="selectPartnerAddItems"  parameterType="String" resultType="com.sinseungpaper.cube.beans.PartnerAddItems" >
+			SELECT
+					PI_CODE AS PICODE
+				,	PI_NAME AS PINAME
+				,	PA_DATA AS DATA
+			FROM PR_ADDITEMS
+			INNER JOIN PR_ITEMS ON PI_CODE = PA_PICODE
+			WHERE PA_PRCODE=#{prCode}
+		</select>
+		
+		<!-- 거래처 신용 상세 -->
+		<select id="selectPartnerCreditDetail" parameterType="String" resultType="com.sinseungpaper.cube.beans.PartnerCreditDetail" >
+			SELECT 
+					PCD.PCD_PICODE AS PARTNERINFOCODE
+				,	PI.PI_NAME AS PARTNERINFONAME
+				,	PCD.PCD_DATA AS CREDITDATA
+			FROM (SELECT * FROM PC_DETAIL WHERE PCD_PCPRCODE = #{prCode}) AS PCD
+			INNER JOIN PR_ITEMS AS PI ON PI_CODE = PCD_PICODE;
+		</select>
+		
+		<!-- 거래처 신용 이력 -->
+		<select id="selectPartnerCreditLog" parameterType="String" resultType="com.sinseungpaper.cube.beans.PartnerCreditLog">
+			SELECT
+					PO_GRADE AS POGRADE
+				,	PO_LIMIT AS POLIMIT
+				,	PO_CAUSE AS POCAUSE
+				,	PO_COMMENT AS POCOMMENT
+			FROM PR_LOAN
+			WHERE PO_PRCODE = #{prCode}
+			AND PO_DATETIME = (SELECT MAX(PO_DATETIME) FROM PR_LOAN WHERE PO_PRCODE = #{prCode})
+		</select>
+		
+		<!-- 거래처 신용 상태 -->
+		<select id="selectPartnerCreditState" parameterType="string" resultType="com.sinseungpaper.cube.beans.PartnerCreditState">
+			SELECT (SELECT ST_NAME FROM STATE WHERE ST_CODE = PRC_STCODE) AS PRCSTNAME, MAX(PRC_DATE)
+			FROM PR_CREDIT
+			WHERE PRC_PRCODE = #{prCode}
+		</select>
+
+		<!-- 신용정보 입력 완료 -->
+		<update id="submitProposal" parameterType="string">
+			UPDATE PP_AUTHLIST
+			SET PU_STCODE = 'E44'
+			WHERE PU_PODATETIME = (
+				SELECT AM_PODATETIME FROM APPEND_MAPPING WHERE AM_CONTACTCODE = #{prCode}
+			)
+			AND PU_EMCODE = '011201'
+			AND PU_STCODE = 'E41'
+		</update>
+		
+		<!-- 다음 순번 요청 상태로 변경 -->
+		<update id="updateProposal" parameterType="string">
+			UPDATE PP_AUTHLIST
+			SET PU_STCODE = 'E41'
+			WHERE PU_SEQ = (SELECT (PU_SEQ) + 1 FROM PP_AUTHLIST WHERE PU_PODATETIME = (
+				SELECT AM_PODATETIME FROM APPEND_MAPPING WHERE AM_CONTACTCODE = #{prCode}
+				AND PU_EMCODE = '011201'
+				AND PU_STCODE = 'E44')
+			) 
+			AND PU_PODATETIME = (
+				SELECT AM_PODATETIME FROM APPEND_MAPPING WHERE AM_CONTACTCODE = #{prCode}
+			);
+		</update>
+
+		<!-- 정상 등록 -->
+		<update id="updatePartnerState" parameterType="string">
+			UPDATE PARTNERS
+			SET PR_STCODE = 'PR7'
+			WHERE PR_CODE = #{prCode}
+		</update>
+		
+		<!-- 여신 이력 insert -->
+		<insert id="insertPartnerCreditLog" parameterType="com.sinseungpaper.cube.beans.PartnerCreditLog">
+			INSERT INTO PR_LOAN (PO_PRCODE, PO_GRADE, PO_LIMIT, PO_CAUSE, PO_COMMENT, PO_EMCODE)
+			VALUE (#{poPrCode}, #{poGrade}, #{poLimit}, #{poCause}, #{poComment}, #{creditRegEmCode})
+		</insert>
+		
+		<!-- 거래 상태 insert or update -->
+		<insert id="insertPartnerCreditState" parameterType="com.sinseungpaper.cube.beans.PartnerCreditState">
+			INSERT INTO PR_CREDIT (PRC_PRCODE, PRC_EMCODE, PRC_STCODE) 
+			VALUES(#{prcPrCode}, #{prcEmCode}, #{prcStCode}) 
+			ON DUPLICATE KEY UPDATE PRC_PRCODE = #{prcPrCode}, PRC_EMCODE = #{prcEmCode}, PRC_STCODE=#{prcStCode}
+		</insert>
+		
+		<!-- 거래처 추가정보 insert or update -->
+		<insert id="insertPartnerAddItems" parameterType="com.sinseungpaper.cube.beans.PartnerAddItems">
+			INSERT INTO PR_ADDITEMS (PA_PRCODE, PA_PICODE, PA_DATA) 
+			VALUES(#{paPrcode}, #{piCode}, #{data}) 
+			ON DUPLICATE KEY UPDATE PA_PRCODE = #{paPrcode}, PA_PICODE = #{piCode}, PA_DATA = #{data}
+		</insert>
+		
+		<!-- 거래처 신용정보 insert or update -->
+		<insert id="insertPartnerCreditDetail" parameterType="com.sinseungpaper.cube.beans.PartnerCreditDetail">
+			INSERT INTO PC_DETAIL (PCD_PCPRCODE, PCD_PICODE, PCD_DATA) 
+			VALUES(#{prCode}, #{partnerInfoCode}, #{creditData})
+			ON DUPLICATE KEY UPDATE PCD_PCPRCODE = #{prCode}, PCD_PICODE = #{partnerInfoCode}, PCD_DATA = #{creditData}
+		</insert>
+		
+	<!-- cl10 매입마감 -->
+		<resultMap type="com.sinseungpaper.cube.beans.BuyB" id="getBuyDetail">
+			<id property="buyCode" column="BUYCODE"/>
+			<collection property="buyDetail" column="buyCode" javaType="java.util.List" ofType="com.sinseungpaper.cube.beans.BuyDetail" select="selectBuyDetail"></collection>
+		</resultMap>
+		<!-- 제지사 인쇄용지, 산업용지, 특수지 직전 6개월 할인율 -->
+		<select id="selectDiscountAverage" parameterType="string" resultType="com.sinseungpaper.cube.beans.BuyDeadLineAverage">
+			SELECT
+					BT_BEDATE AS month
+				, 	PP_NAME AS paperName
+				, 	AVG(BT_DISCOUNT) AS discount
+			FROM
+				(
+					SELECT BT_BEDATE, BT_BDPTCODE, BT_DISCOUNT
+					FROM BE_DETAIL
+					WHERE BT_BEDATE >= DATE_FORMAT(DATE_SUB(CONCAT(#{date}, '01'), INTERVAL 6 MONTH), '%Y%m')
+				)  BD
+			INNER JOIN PRODUCT P ON PT_CODE = BT_BDPTCODE
+			INNER JOIN ORIGINAL OG ON OG_CODE = PT_OGCODE
+			INNER JOIN PAPERDIVISION PD ON PD_OGCODE = OG_CODE AND PD_PPCODE IN ('P100', 'P200', '300')
+			INNER JOIN PAPER PA ON PP_CODE = PD.PD_PPCODE
+			GROUP BY BT_BEDATE, PP_CODE
+		</select>
+
+		<!-- 제지사 or 지업사 매입이력 SELECT -->
+		<select id="selectBuyList" parameterType="hashmap" resultMap="getBuyDetail">
+			SELECT
+					BY_CODE AS BUYCODE
+				,	BY_DATETIME AS BUYDATETIME
+				,	BY_PRCODE1 AS purchasePartnerCode
+				,	PP.PR_NAME AS purchasePartnerName
+				,	BY_PRCODE2 AS salesPartnerCode
+				,	SP.PR_NAME AS salesPartnerName
+				,	BY_DPCODE AS deliveryPartnerCode
+				,	DP.PR_NAME AS deliveryPartnerName
+				,	BY_STCODE AS STATECODE
+			FROM (SELECT * FROM BUY WHERE BY_PRCODE1 = #{prCode}) BUY
+			INNER JOIN PARTNERS PP ON PP.PR_CODE = BY_PRCODE1
+			INNER JOIN PARTNERS SP ON SP.PR_CODE = BY_PRCODE2
+			INNER JOIN PARTNERS DP ON DP.PR_CODE = BY_DPCODE
+			<where>
+				<if test="date != null">
+					SUBSTR(BUY.BY_DATETIME, 1, 7) = #{date}
+				</if>
+			</where>
+		</select>
+
+		<!-- 매입상세 SELECT(resultMap) -->
+		<select id="selectBuyDetail" parameterType="string" resultType="com.sinseungpaper.cube.beans.BuyDetail">
+			SELECT
+					BD.BD_PTCODE AS PRODUCTCODE
+				,	BD.BD_CODE AS SEQUENCE
+				,	BD.BD_COUNT AS QUANTITY
+				,	BD.BD_WEIGHT AS WEIGHT
+				,	BD.BD_MAKERMAPPING AS MAPPINGCODE
+				,	OG_NAME AS productName
+			FROM (SELECT * FROM BY_DETAIL WHERE BD_BYCODE = #{buyCode}) AS BD
+			LEFT OUTER JOIN PRICELOG ON PL_PTCODE = BD.BD_PTCODE
+			LEFT OUTER JOIN ORIGINAL ON OG_CODE = SUBSTR(BD.BD_PTCODE, 1, 8)
+		</select>
+
+		<!-- 매입마감 INSERT -->
+		<insert id="insertBuyDeadLine" parameterType="com.sinseungpaper.cube.beans.BuyDetail">
+			INSERT INTO BE_DETAIL (BT_BEDATE, BT_BDCODE, BT_BDBYCODE, BT_BDPTCODE, BT_BDDEADCODE, BT_DISCOUNT, BT_PRICE)
+			VALUES (
+				#{buyDeadLineDate}, #{buyDeadLineSequence}, #{buyCode}, #{productCode},
+				 #{mappingCode}, #{discount}, #{price}
+			)
+		</insert>
+		
+	<!-- 자사재고 -->
+	<select id="selectCenterStock" parameterType="hashMap" resultMap="rentalPartnersMap">
+		SELECT
+		DC.DC_CODE AS centerCode
+		, CP.CP_RNCODE AS centerLocation
+		, CONCAT(CONCAT(SUBSTR(PT_SZCODE, 1, 4), '*'), SUBSTR(PT_SZCODE, 5)) AS size
+		, OG.OG_CODE AS originalCode
+		, OG.OG_NAME AS originalName
+		, OG.OG_WEIGHT AS grammage
+		, PM.PM_NAME AS paperMakerName
+		, PM.PM_Code AS paperMakerCode
+		, SUM(SA.SA_QTY) / 500 AS rentalQty
+		, (SUM(CP.CP_COUNT) + IFNULL(WD.WD_QTY, 0) - IFNULL(SUM(SA.SA_QTY), 0)) / 500 AS qty
+		, CP.CP_PTCODE AS productCode
+		, WD.WD_QTY / 500 AS scheduleQty
+		, DL.DL_RATE AS discountRate
+		, IFNULL(PL.PL_NOTICEPRICE, 0) AS noticePrice
+		, IFNULL(PL.PL_NOTICEPRICE2, 0) AS noticePrice2
+		, IFNULL(PL.PL_NOTICEPRICE3, 0) AS noticePrice3
+		, IFNULL(PL.PL_NOTICEPRICE4, 0) AS noticePrice4
+		FROM (SELECT *
+			  FROM CENTERPRODUCT
+		      WHERE SUBSTR(CP_PTCODE, 1, 8) IN
+				(SELECT PD_OGCODE
+				 FROM PAPERDIVISION
+				 WHERE PD_PPCODE = #{paperCode}
+			 	 AND SUBSTR(PD_OGCODE, 6, 8) = #{originalWeight})) CP
+		INNER JOIN PRODUCT PT ON PT.PT_CODE = CP.CP_PTCODE
+		INNER JOIN ORIGINAL OG ON OG.OG_CODE = PT.PT_OGCODE
+		INNER JOIN DBCENTER DC ON DC.DC_CODE = CP.CP_RNDCCODE
+		INNER JOIN PAPERMAKER PM ON PM.PM_CODE = OG.OG_PMCODE
+		LEFT OUTER JOIN SALESTORAGE SA ON SA.SA_PTCODE = PT.PT_CODE
+		LEFT OUTER JOIN WR_DETAIL WD ON (WD.WD_PTCODE = PT.PT_CODE AND WD.WD_WRCODE IN
+		(SELECT WR_CODE FROM WAREHOUSING WHERE WR_STCODE = 'W01'))
+		LEFT OUTER JOIN PRICELOG PL ON PL.PL_OGCODE = OG.OG_CODE AND PL.PL_STARTDATE =
+		(SELECT MAX(PL_STARTDATE) FROM PRICELOG WHERE PL_OGCODE = OG_CODE GROUP BY PL_OGCODE)
+		LEFT OUTER JOIN DISCOUNTLOG DL ON SUBSTR(DL.DL_PPCODE, 1, 3) = SUBSTR(#{paperCode}, 1, 3)
+		AND DL_PRCODE = #{prCode}
+		<where>
+			<if test='width != null'>
+				AND SUBSTR(PT.PT_SZCODE, 1, 4) BETWEEN (#{width} - '100') AND (#{width} +
+				'100')
+			</if>
+			<if test='height != null'>
+				AND SUBSTR(PT.PT_SZCODE, 5) BETWEEN (#{height} - '100') AND (#{height} +
+				'100')
+			</if>
+		</where>
+		AND CP.CP_RNDCCODE IN ('SS11', 'SS12')
+		AND OG.OG_FSCYN = (SELECT OG_FSCYN FROM ORIGINAL WHERE OG_CODE = #{originalCode})
+		GROUP BY CP.CP_RNDCCODE, CP.CP_PTCODE
+	</select>
+	<!-- 자사재고 SELECT -->
+		<resultMap type="com.sinseungpaper.cube.beans.CenterStockBean" id="rentalPartnersMap">
+			<id property="productCode" column="productCode"/>
+			<collection property="rentalPartners" column="productCode" javaType="java.util.List" ofType="com.sinseungpaper.cube.beans.RentalPartnerBean" select="selectRentalPartners"/>
+		</resultMap>
+
+		<select id="selectRentalPartners" parameterType="string" resultType="com.sinseungpaper.cube.beans.RentalPartnerBean">
+			SELECT
+					SA.SA_PRCODE AS partnerCode
+				,	PR.PR_NAME AS partnerName
+				,	SA.SA_QTY AS qty
+			FROM (SELECT * FROM SALESTORAGE WHERE SA_PTCODE = #{productCode}) SA
+			INNER JOIN PARTNERS PR ON PR.PR_CODE = SA.SA_PRCODE
+		</select>
+
+		<select id="selectPurchaseStock" parameterType="hashMap" resultType="com.sinseungpaper.cube.beans.PurchaseStockBean">
+			SELECT
+					PH.PH_CODE AS PHCODE
+				,	PH.PH_DATE AS PHDATE
+				,	PH.PH_QTY / 500 AS PHQTY
+				,	PH.PH_PRCODE AS PHPRCODE
+				,	(SELECT PR_NAME FROM PARTNERS WHERE PR_CODE = PH.PH_PRCODE) AS PHPRNAME
+				,	PH.PH_PTCODE AS PHPTCODE
+				,	PH.PH_DCCODE AS PHCTCODE
+			FROM (SELECT *
+				  FROM PURCHASESTORAGE
+				  WHERE PH_DCCODE IN (
+				  	SELECT DC_CODE
+					FROM DBCENTER
+					WHERE DC_PMCODE = #{originalPaperMakerCode})) PH
+			WHERE SUBSTR(PH.PH_PTCODE, 1, 8) = #{originalCode}
+		</select>
+
+		<select id="selectDiscountRate" parameterType="hashMap" resultType="string">
+			SELECT DL_RATE
+			FROM DISCOUNTLOG
+			WHERE SUBSTR(DL_PPCODE, 1, 3) = SUBSTR(#{paperCode}, 1, 3)
+			AND DL_PRCODE = #{prCode}
+			AND DL_ENDATE = '9999-12-31'
+			LIMIT 1
+		</select>
+</mapper>
